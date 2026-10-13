@@ -40,12 +40,11 @@ button:focus-visible,input:focus-visible {
 }
 
 .header-content {
-  height: 76px;
-  display: flex;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  font-size: 19px;
-  font-weight: 700;
+  gap: 32px;
 }
 
 .intro {
@@ -80,22 +79,24 @@ h1 {
   line-height: 1.7;
 }
 
-.job-tabs {
+.job-nav {
   display: flex;
-  gap: 24px;
-  border-bottom: 1px solid #dce3ed;
-  margin-top: 32px;
+  justify-content: center;
+  align-self: stretch;
+  gap: 20px;
 }
 
-.job-tabs button {
-  padding: 18px 2px;
+.job-nav button {
+  padding: 0 6px;
   border: 0;
   border-bottom: 3px solid transparent;
-  background: none;
-  color: #68758a;
+  background: transparent;
+  color: #4b5c73;
+  white-space: nowrap;
+  font-size: 14px;
 }
 
-.job-tabs button.active {
+.job-nav button.active {
   color: #245ec5;
   border-bottom-color: #245ec5;
   font-weight: 700;
@@ -239,12 +240,6 @@ h3 {
   .cards {
     grid-template-columns: 1fr;
   }
-  .job-tabs {
-    gap: 20px;
-  }
-  .job-tabs button {
-    font-size: 14px;
-  }
 }
 
 
@@ -262,6 +257,7 @@ a {
 .account-nav {
   display: flex;
   align-items: center;
+  justify-self: end;
   gap: 8px;
   font-size: 14px;
 }
@@ -364,18 +360,30 @@ a:focus-visible {
 
 @media (max-width: 640px) {
   .header-content {
-    height: auto;
+    grid-template-columns: 1fr auto;
     min-height: 76px;
     padding-top: 16px;
-    padding-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 16px;
+    gap: 12px;
   }
   .brand {
     font-size: 17px;
   }
+  .job-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    gap: 20px;
+    overflow-x: auto;
+  }
+  .job-nav button {
+    padding: 10px 2px;
+  }
   .account-nav {
-    gap: 12px;
+    gap: 0;
+    font-size: 12px;
+  }
+  .account-link {
+    padding: 8px 6px;
   }
   .auth-main {
     padding-top: 28px;

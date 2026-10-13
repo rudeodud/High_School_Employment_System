@@ -2,16 +2,12 @@
 
 import { useState } from "react";
 import JobCard from "@/components/JobCard";
-import { sampleJobs, type JobSource } from "@/data/jobs";
-
-const jobTabs: { value: JobSource; label: string }[] = [
-  { value: "school", label: "학교 채용 공고" },
-  { value: "external", label: "외부 채용 공고" },
-];
+import { useJobSource } from "@/components/JobSourceProvider";
+import { sampleJobs } from "@/data/jobs";
 
 export default function Home() {
-  // 선택한 분류, 검색어, 펼쳐진 공고를 각각 기억합니다.
-  const [activeSource, setActiveSource] = useState<JobSource>("school");
+  // 공고 분류는 상단 메뉴와 공유하고, 검색어·펼침 상태는 이 화면에 보관합니다.
+  const { activeSource } = useJobSource();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedJobId, setExpandedJobId] = useState<number | null>(null);
 
@@ -21,11 +17,6 @@ export default function Home() {
     const searchableText = `${job.company} ${job.title} ${job.location}`.toLowerCase();
     return matchesSource && searchableText.includes(normalizedQuery);
   });
-
-  function selectSource(source: JobSource) {
-    setActiveSource(source);
-    setExpandedJobId(null);
-  }
 
   function toggleJob(jobId: number) {
     setExpandedJobId((currentId) => currentId === jobId ? null : jobId);
@@ -42,19 +33,6 @@ export default function Home() {
       <aside className="notice">
         현재 표시된 기업과 공고는 모두 가상의 샘플입니다. 로그인·신청·외부 API는 준비 중입니다.
       </aside>
-
-      <nav className="job-tabs" aria-label="공고 분류">
-        {jobTabs.map((tab) => (
-          <button
-            key={tab.value}
-            aria-pressed={activeSource === tab.value}
-            className={activeSource === tab.value ? "active" : ""}
-            onClick={() => selectSource(tab.value)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
 
       <div className="toolbar">
         <h2>

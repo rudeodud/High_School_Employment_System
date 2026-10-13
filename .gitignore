@@ -40,9 +40,25 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Terraform and credentials
+# Terraform: provider downloads, local state, plans, and private inputs
 **/.terraform/
 **/terraform.tfstate*
+**/.terraform.tfstate.lock.info
 **/terraform.tfvars
-*.pem
+**/terraform.tfvars.json
+**/*.auto.tfvars
+**/*.auto.tfvars.json
+**/*.tfplan
+**/tfplan
+**/plan.out
+**/crash.log
+**/crash.*.log
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+**/.terraformrc
+**/terraform.rc
+
+# Keep Terraform source, terraform.tfvars.example, and .terraform.lock.hcl in Git.
 *.key
