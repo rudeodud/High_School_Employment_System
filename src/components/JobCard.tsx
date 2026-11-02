@@ -10,13 +10,16 @@ type JobCardProps = {
 export default function JobCard({ job, isExpanded, onToggle }: JobCardProps) {
   return (
     <article className="job-card">
-      <div className="tags">
-        <span>{job.type}</span>
-        <span className="sample">샘플 공고</span>
+      <div className="job-card-header">
+        <span className="company-avatar" aria-hidden="true">{job.company.slice(0, 1)}</span>
+        <div className="tags">
+          <span>{job.type}</span>
+          <span className="sample">샘플</span>
+        </div>
       </div>
       <p className="company">{job.company}</p>
       <h3>{job.title}</h3>
-      <p className="meta">{job.location} · {job.education}</p>
+      <p className="meta"><span>⌖</span> {job.location}<span className="meta-divider" />{job.education}</p>
       <button
         className="detail"
         aria-expanded={isExpanded}
@@ -24,7 +27,7 @@ export default function JobCard({ job, isExpanded, onToggle }: JobCardProps) {
         onClick={onToggle}
       >
         {isExpanded ? "상세 내용 닫기" : "상세 내용 보기"}
-        <span aria-hidden="true">↗</span>
+        <span className={isExpanded ? "detail-arrow open" : "detail-arrow"} aria-hidden="true">↓</span>
       </button>
       <div id={`job-description-${job.id}`} hidden={!isExpanded}>
         <div className="description">

@@ -24,14 +24,38 @@ export default function Home() {
 
   return (
     <main className="shell">
-      <section className="intro">
-        <p className="eyebrow">우리 학교 취업 게시판</p>
-        <h1>첫 시작을 위한 기회,<br />한곳에서 찾아보세요.</h1>
-        <p>학교 채용 공고와 외부 취업 정보를 함께 확인하세요.</p>
+      <section className="intro hero">
+        <div className="hero-copy">
+          <p className="eyebrow"><span aria-hidden="true" /> 우리 학교 커리어 플랫폼</p>
+          <h1>가능성을 발견하고,<br /><em>내일의 일을 만나다.</em></h1>
+          <p className="hero-description">
+            학교에 도착한 채용 소식부터 외부 취업 정보까지,<br />학생에게 필요한 기회를 한곳에서 확인하세요.
+          </p>
+          <div className="hero-pills" aria-label="서비스 특징">
+            <span>✓ 학교 맞춤 공고</span>
+            <span>✓ 간편한 정보 탐색</span>
+          </div>
+        </div>
+        <div className="hero-panel">
+          <div className="hero-panel-top">
+            <div>
+              <span className="panel-kicker">OPPORTUNITY BOARD</span>
+              <strong>새로운 기회가<br />도착했어요</strong>
+            </div>
+            <span className="panel-badge">LIVE</span>
+          </div>
+          <div className="hero-stats">
+            <div><strong>{sampleJobs.filter((job) => job.source === "school").length}</strong><span>학교 공고</span></div>
+            <div><strong>{sampleJobs.filter((job) => job.source === "external").length}</strong><span>외부 공고</span></div>
+            <div><strong>1</strong><span>학교정보 API</span></div>
+          </div>
+          <p className="panel-note">관심 있는 공고를 지금 확인해 보세요.</p>
+        </div>
       </section>
 
       <aside className="notice">
-        현재 표시된 기업과 공고는 모두 가상의 샘플입니다. 로그인·신청·외부 API는 준비 중입니다.
+        <span className="notice-icon" aria-hidden="true">i</span>
+        <span><strong>데모 안내</strong> 현재 기업과 공고는 가상의 샘플입니다. 로그인·신청·외부 API는 준비 중입니다.</span>
       </aside>
 
       <div className="toolbar">
@@ -39,8 +63,9 @@ export default function Home() {
           {activeSource === "school" ? "학교에 도착한 공고" : "외부 채용 공고"}
           <small>{filteredJobs.length}건</small>
         </h2>
-        <label>
+        <label className="search-field">
           <span className="sr-only">기업명, 직무, 지역 검색</span>
+          <span aria-hidden="true">⌕</span>
           <input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}

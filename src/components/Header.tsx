@@ -26,7 +26,9 @@ export default function Header() {
   return (
     <header className="site-header">
       <div className="shell header-content">
-        <Link href="/" className="brand">학교 채용 시스템</Link>
+        <Link href="/" className="brand" aria-label="학교 채용 시스템 홈">
+          <span>School<span>Jobs</span></span>
+        </Link>
         <nav className="job-nav" aria-label="주요 메뉴">
           {jobLinks.map(({ source, label }) => (
             <button

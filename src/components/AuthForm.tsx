@@ -45,6 +45,16 @@ export default function AuthForm({ mode, onSubmit, errorMessage, onErrorClear }:
 
   return (
     <main className="shell auth-main">
+      <section className="auth-showcase" aria-hidden="true">
+        <p className="panel-kicker">SCHOOL CAREER PLATFORM</p>
+        <h2>학생의 가능성이<br />진로로 이어지는 곳</h2>
+        <p>학교와 기업의 기회를 더 가깝게 연결합니다.</p>
+        <div className="auth-feature-list">
+          <span>01 <strong>학교 맞춤 채용정보</strong></span>
+          <span>02 <strong>전국 학교정보 검색</strong></span>
+          <span>03 <strong>안전한 학생 계정</strong></span>
+        </div>
+      </section>
       <section className="auth-card" aria-labelledby="auth-title">
         <p className="eyebrow">학교 채용 시스템</p>
         <h1 id="auth-title">{title}</h1>
@@ -129,7 +139,10 @@ export default function AuthForm({ mode, onSubmit, errorMessage, onErrorClear }:
             </>
           )}
 
-          <button type="submit" className="primary-button">입력 확인 (미리보기)</button>
+          <button type="submit" className="primary-button">
+            {isSignup ? "학생 계정 만들기" : "로그인"}
+            <span aria-hidden="true">→</span>
+          </button>
           <p className="form-feedback" role="status" aria-live="polite">
             {errorMessage || feedback}
           </p>
