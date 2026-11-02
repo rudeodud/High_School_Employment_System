@@ -58,3 +58,27 @@ variable "db_instance_class" {
   type        = string
   default     = "db.t3.micro"
 }
+
+variable "github_repository" {
+  description = "배포 권한을 허용할 GitHub 저장소 (owner/repository)"
+  type        = string
+  default     = "rudeodud/High_School_Employment_System"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_repository))
+    error_message = "github_repository는 owner/repository 형식이어야 합니다."
+  }
+}
+
+variable "deploy_branch" {
+  description = "EC2 자동 배포를 허용할 GitHub 브랜치"
+  type        = string
+  default     = "main"
+}
+
+variable "github_oidc_provider_arn" {
+  description = "AWS 계정에 이미 GitHub OIDC 공급자가 있을 때 그 ARN. 없으면 null로 두어 새로 생성합니다."
+  type        = string
+  default     = null
+  nullable    = true
+}

@@ -27,3 +27,18 @@ output "peering_connection_id" {
   description = "서버 VPC와 DB VPC의 Peering 연결 ID"
   value       = aws_vpc_peering_connection.server_db.id
 }
+
+output "github_actions_role_arn" {
+  description = "GitHub Actions의 AWS_ROLE_ARN 저장소 변수에 넣을 IAM Role ARN"
+  value       = aws_iam_role.github_actions.arn
+}
+
+output "ecr_repository_name" {
+  description = "GitHub Actions의 ECR_REPOSITORY 저장소 변수에 넣을 이름"
+  value       = aws_ecr_repository.app.name
+}
+
+output "web_instance_id" {
+  description = "GitHub Actions의 EC2_INSTANCE_ID 저장소 변수에 넣을 EC2 ID"
+  value       = aws_instance.web.id
+}

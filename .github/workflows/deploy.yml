@@ -1,0 +1,173 @@
+name: Test and deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+  AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+
+jobs:
+  deploy:
+    name: Build, push, and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build application
+        run: npm run build
+
+      - name: Check deployment variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable_name in AWS_ROLE_ARN ECR_REPOSITORY EC2_INSTANCE_ID; do
+            if [ -z "${!variable_name:-}" ]; then
+              echo "Repository variable ${variable_name} is required." >&2
+              exit 1
+            fi
+          done
+
+      - name: Configure temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push container image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_uri="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker build --tag "${image_uri}" .
+          docker push "${image_uri}"
+
+      - name: Deploy image through AWS Systems Manager
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          image_uri="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          deploy_script=$(cat <<'REMOTE_SCRIPT'
+          set -euo pipefail
+
+          dnf install -y docker
+          systemctl enable --now docker
+
+          aws ecr get-login-password --region __AWS_REGION__ \
+            | docker login --username AWS --password-stdin __ECR_REGISTRY__
+          docker pull __IMAGE_URI__
+
+          old_image=$(docker inspect --format '{{.Config.Image}}' school-jobs 2>/dev/null || true)
+
+          docker rm -f school-jobs-candidate 2>/dev/null || true
+          docker run -d --name school-jobs-candidate __IMAGE_URI__
+
+          for attempt in $(seq 1 30); do
+            candidate_status=$(docker inspect --format '{{.State.Health.Status}}' school-jobs-candidate 2>/dev/null || true)
+            if [ "${candidate_status}" = "healthy" ]; then
+              break
+            fi
+            if [ "${candidate_status}" = "unhealthy" ]; then
+              docker logs school-jobs-candidate
+              exit 1
+            fi
+            sleep 2
+          done
+
+          test "$(docker inspect --format '{{.State.Health.Status}}' school-jobs-candidate)" = "healthy"
+          docker rm -f school-jobs-candidate
+          docker rm -f school-jobs 2>/dev/null || true
+          docker run -d --name school-jobs --restart unless-stopped -p 80:3000 __IMAGE_URI__
+
+          deployment_ok=false
+          for attempt in $(seq 1 30); do
+            deployed_status=$(docker inspect --format '{{.State.Health.Status}}' school-jobs 2>/dev/null || true)
+            if [ "${deployed_status}" = "healthy" ]; then
+              deployment_ok=true
+              break
+            fi
+            if [ "${deployed_status}" = "unhealthy" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "${deployment_ok}" != "true" ]; then
+            docker logs school-jobs || true
+            docker rm -f school-jobs || true
+            if [ -n "${old_image}" ]; then
+              docker run -d --name school-jobs --restart unless-stopped -p 80:3000 "${old_image}"
+            fi
+            exit 1
+          fi
+
+          docker image prune -af --filter "until=168h"
+          REMOTE_SCRIPT
+          )
+
+          deploy_script=${deploy_script//__AWS_REGION__/${AWS_REGION}}
+          deploy_script=${deploy_script//__ECR_REGISTRY__/${ECR_REGISTRY}}
+          deploy_script=${deploy_script//__IMAGE_URI__/${image_uri}}
+          parameters=$(jq -n --arg command "${deploy_script}" '{commands: [$command]}')
+
+          command_id=$(aws ssm send-command \
+            --instance-ids "${EC2_INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy ${GITHUB_SHA}" \
+            --parameters "${parameters}" \
+            --timeout-seconds 600 \
+            --query "Command.CommandId" \
+            --output text)
+
+          if ! aws ssm wait command-executed \
+            --command-id "${command_id}" \
+            --instance-id "${EC2_INSTANCE_ID}"; then
+            aws ssm get-command-invocation \
+              --command-id "${command_id}" \
+              --instance-id "${EC2_INSTANCE_ID}" \
+              --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}'
+            exit 1
+          fi
+
+          aws ssm get-command-invocation \
+            --command-id "${command_id}" \
+            --instance-id "${EC2_INSTANCE_ID}" \
+            --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}'

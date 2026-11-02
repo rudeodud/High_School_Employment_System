@@ -19,11 +19,35 @@ http://localhost:3000 에서 확인합니다.
 - 현재 페이지에 맞춰 강조되는 로그인·회원가입 메뉴와 입력 화면
 - 회원가입 필수값·비밀번호 확인 검사
 - 모바일 화면 대응
+- 나이스 Open API를 이용한 학교 기본정보 검색
 
 **현재 인증 화면은 미리보기입니다.** 계정 생성·로그인·정보 저장은 하지 않습니다.
 로그인 화면에서 아이디와 비밀번호 `1111`을 입력하면 데모 입력 검사를 통과하고 홈으로 이동합니다.
 공고는 가상 샘플이며, DB 연결·인증 서버·신청·외부 API는 아직 구현하지 않았습니다.
 AWS Terraform 설계와 실행 방법은 [`infra/README.md`](infra/README.md)에 있습니다.
+
+## 나이스 학교정보 API
+
+프로젝트 루트의 `.env.local`에 발급받은 인증키를 저장합니다.
+
+```env
+NEIS_API_KEY=발급받은_인증키
+```
+
+개발 서버를 다시 실행한 뒤 `http://localhost:3000/schools`에서 학교명을 검색합니다.
+인증키는 `src/app/api/schools/route.ts` 서버 라우트에서만 사용하며 브라우저에는 전달하지 않습니다.
+
+## EC2 CI/CD
+
+`main` 브랜치에 push하면 GitHub Actions가 다음 순서로 배포합니다.
+
+1. ESLint와 Next.js production build를 실행합니다.
+2. Docker 이미지를 만들어 Amazon ECR에 올립니다.
+3. GitHub OIDC로 임시 AWS 권한을 받습니다. 장기 AWS 액세스 키는 사용하지 않습니다.
+4. AWS Systems Manager Run Command가 EC2에서 새 이미지를 내려받아 실행합니다.
+5. 컨테이너 상태 검사에 실패하면 이전 이미지로 되돌립니다.
+
+최초 설정과 GitHub 저장소 변수 등록 방법은 [`infra/README.md`](infra/README.md#cicd-최초-설정)를 따르세요.
 
 ## 코드를 읽는 순서
 

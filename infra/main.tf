@@ -34,6 +34,8 @@ data "aws_ssm_parameter" "al2023_ami" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
 }
 
+data "aws_caller_identity" "current" {}
+
 # ── 서버 VPC: 웹 EC2와 Bastion EC2 ─────────────────────────────
 resource "aws_vpc" "server" {
   cidr_block           = local.server_vpc_cidr
@@ -230,6 +232,159 @@ resource "aws_security_group" "db" {
   depends_on = [aws_vpc_peering_connection.server_db]
 }
 
+# ── CI/CD: GitHub Actions OIDC, ECR, EC2 SSM ────────────────────
+# 계정에 GitHub OIDC 공급자가 이미 있으면 var.github_oidc_provider_arn을 사용합니다.
+resource "aws_iam_openid_connect_provider" "github" {
+  count = var.github_oidc_provider_arn == null ? 1 : 0
+
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+}
+
+locals {
+  github_oidc_provider_arn = var.github_oidc_provider_arn != null ? var.github_oidc_provider_arn : aws_iam_openid_connect_provider.github[0].arn
+}
+
+resource "aws_ecr_repository" "app" {
+  name                 = var.project_name
+  image_tag_mutability = "MUTABLE"
+  force_delete         = true
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = { Name = "${var.project_name}-app" }
+}
+
+resource "aws_ecr_lifecycle_policy" "app" {
+  repository = aws_ecr_repository.app.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "최근 이미지 10개만 보관"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+
+resource "aws_iam_role" "web" {
+  name = "${var.project_name}-web-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "web_ssm" {
+  role       = aws_iam_role.web.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy" "web_ecr" {
+  name = "${var.project_name}-ecr-pull"
+  role = aws_iam_role.web.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage"
+        ]
+        Resource = aws_ecr_repository.app.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "web" {
+  name = "${var.project_name}-web-profile"
+  role = aws_iam_role.web.name
+}
+
+resource "aws_iam_role" "github_actions" {
+  name = "${var.project_name}-github-actions"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = local.github_oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repository}:ref:refs/heads/${var.deploy_branch}"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "github_actions" {
+  name = "${var.project_name}-deploy"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:CompleteLayerUpload",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:InitiateLayerUpload",
+          "ecr:PutImage",
+          "ecr:UploadLayerPart"
+        ]
+        Resource = aws_ecr_repository.app.arn
+      },
+      {
+        Effect = "Allow"
+        Action = ["ssm:SendCommand"]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript",
+          "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/${aws_instance.web.id}"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:GetCommandInvocation"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # ── EC2 두 대와 RDS 한 개 ────────────────────────────────────────
 resource "aws_key_pair" "project" {
   key_name   = "${var.project_name}-key"
@@ -243,6 +398,7 @@ resource "aws_instance" "web" {
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.web.id]
   key_name                    = aws_key_pair.project.key_name
+  iam_instance_profile        = aws_iam_instance_profile.web.name
 
   metadata_options {
     http_tokens = "required"

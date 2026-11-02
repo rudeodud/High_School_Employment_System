@@ -27,7 +27,7 @@ export default function Header() {
     <header className="site-header">
       <div className="shell header-content">
         <Link href="/" className="brand">학교 채용 시스템</Link>
-        <nav className="job-nav" aria-label="채용 공고">
+        <nav className="job-nav" aria-label="주요 메뉴">
           {jobLinks.map(({ source, label }) => (
             <button
               key={source}
@@ -39,6 +39,13 @@ export default function Header() {
               {label}
             </button>
           ))}
+          <Link
+            href="/schools"
+            className={pathname === "/schools" ? "school-nav-link active" : "school-nav-link"}
+            aria-current={pathname === "/schools" ? "page" : undefined}
+          >
+            학교 정보
+          </Link>
         </nav>
         <nav className="account-nav" aria-label="계정 메뉴">
           <Link
