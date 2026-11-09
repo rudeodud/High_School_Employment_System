@@ -1,25 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import JobCard from "@/components/JobCard";
 import { useJobSource } from "@/components/JobSourceProvider";
-import { sampleJobs } from "@/data/jobs";
+import { sampleJobs, type Job } from "@/data/jobs";
+
+type JobsResponse = {
+  jobs?: Job[];
+  totalCount?: number;
+  message?: string;
+};
 
 export default function Home() {
   // 공고 분류는 상단 메뉴와 공유하고, 검색어·펼침 상태는 이 화면에 보관합니다.
   const { activeSource } = useJobSource();
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedJobId, setExpandedJobId] = useState<number | null>(null);
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [requestVersion, setRequestVersion] = useState(0);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [externalJobs, setExternalJobs] = useState<Job[]>([]);
+  const [externalTotalCount, setExternalTotalCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    if (activeSource !== "external") return;
+
+    const controller = new AbortController();
+
+    async function loadExternalJobs() {
+      setIsLoading(true);
+      setLoadError("");
+
+      try {
+        const params = new URLSearchParams();
+        if (submittedQuery) params.set("keyword", submittedQuery);
+        const response = await fetch(`/api/jobs?${params}`, { signal: controller.signal });
+        const data = (await response.json()) as JobsResponse;
+
+        if (!response.ok) throw new Error(data.message || "채용정보 조회에 실패했습니다.");
+
+        setExternalJobs(data.jobs ?? []);
+        setExternalTotalCount(data.totalCount ?? data.jobs?.length ?? 0);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setExternalJobs([]);
+        setExternalTotalCount(0);
+        setLoadError(error instanceof Error ? error.message : "채용정보 조회에 실패했습니다.");
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false);
+      }
+    }
+
+    void loadExternalJobs();
+    return () => controller.abort();
+  }, [activeSource, submittedQuery, requestVersion]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredJobs = sampleJobs.filter((job) => {
-    const matchesSource = job.source === activeSource;
+  const filteredSchoolJobs = sampleJobs.filter((job) => {
+    const matchesSource = job.source === "school";
     const searchableText = `${job.company} ${job.title} ${job.location}`.toLowerCase();
     return matchesSource && searchableText.includes(normalizedQuery);
   });
+  const visibleJobs = activeSource === "school" ? filteredSchoolJobs : externalJobs;
+  const visibleCount = activeSource === "school" ? visibleJobs.length : externalTotalCount;
 
-  function toggleJob(jobId: number) {
+  function toggleJob(jobId: string) {
     setExpandedJobId((currentId) => currentId === jobId ? null : jobId);
+  }
+
+  function searchJobs(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (activeSource === "external") {
+      setExpandedJobId(null);
+      setSubmittedQuery(searchQuery.trim());
+      setRequestVersion((version) => version + 1);
+    }
   }
 
   return (
@@ -46,8 +103,8 @@ export default function Home() {
           </div>
           <div className="hero-stats">
             <div><strong>{sampleJobs.filter((job) => job.source === "school").length}</strong><span>학교 공고</span></div>
-            <div><strong>{sampleJobs.filter((job) => job.source === "external").length}</strong><span>외부 공고</span></div>
-            <div><strong>1</strong><span>학교정보 API</span></div>
+            <div><strong>{externalTotalCount || "-"}</strong><span>고용24 공고</span></div>
+            <div><strong>2</strong><span>연결 API</span></div>
           </div>
           <p className="panel-note">관심 있는 공고를 지금 확인해 보세요.</p>
         </div>
@@ -55,28 +112,50 @@ export default function Home() {
 
       <aside className="notice">
         <span className="notice-icon" aria-hidden="true">i</span>
-        <span><strong>데모 안내</strong> 현재 기업과 공고는 가상의 샘플입니다. 로그인·신청·외부 API는 준비 중입니다.</span>
+        <span>
+          <strong>{activeSource === "external" ? "고용24 연동" : "데모 안내"}</strong>
+          {activeSource === "external"
+            ? "외부 채용 공고는 고용노동부 고용24에서 실시간으로 조회합니다."
+            : "학교 공고는 현재 가상의 샘플이며, 로그인·신청 기능은 준비 중입니다."}
+        </span>
       </aside>
 
       <div className="toolbar">
         <h2>
           {activeSource === "school" ? "학교에 도착한 공고" : "외부 채용 공고"}
-          <small>{filteredJobs.length}건</small>
+          <small>{visibleCount}건</small>
         </h2>
-        <label className="search-field">
-          <span className="sr-only">기업명, 직무, 지역 검색</span>
-          <span aria-hidden="true">⌕</span>
-          <input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="기업명, 직무, 지역 검색"
-            type="search"
-          />
-        </label>
+        <form className="job-search-form" onSubmit={searchJobs}>
+          <label className="search-field">
+            <span className="sr-only">기업명, 직무, 지역 검색</span>
+            <span aria-hidden="true">⌕</span>
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="기업명, 직무, 지역 검색"
+              type="search"
+              maxLength={100}
+            />
+          </label>
+          {activeSource === "external" && (
+            <button className="job-search-button" type="submit" disabled={isLoading}>
+              {isLoading ? "조회 중" : "검색"}
+            </button>
+          )}
+        </form>
       </div>
 
+      {loadError && activeSource === "external" && (
+        <div className="jobs-feedback error" role="alert">
+          <p>{loadError}</p>
+          <button type="button" onClick={() => setRequestVersion((version) => version + 1)}>다시 시도</button>
+        </div>
+      )}
+      {isLoading && activeSource === "external" && (
+        <p className="jobs-feedback" role="status">고용24에서 최신 채용 공고를 불러오는 중입니다.</p>
+      )}
       <div className="cards">
-        {filteredJobs.map((job) => (
+        {!isLoading && visibleJobs.map((job) => (
           <JobCard
             key={job.id}
             job={job}
@@ -85,7 +164,7 @@ export default function Home() {
           />
         ))}
       </div>
-      {filteredJobs.length === 0 && (
+      {!isLoading && !loadError && visibleJobs.length === 0 && (
         <p className="empty">검색 결과가 없습니다. 다른 검색어를 입력해 주세요.</p>
       )}
     </main>

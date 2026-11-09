@@ -14,7 +14,7 @@ export default function JobCard({ job, isExpanded, onToggle }: JobCardProps) {
         <span className="company-avatar" aria-hidden="true">{job.company.slice(0, 1)}</span>
         <div className="tags">
           <span>{job.type}</span>
-          <span className="sample">샘플</span>
+          <span className="sample">{job.isSample ? "샘플" : job.provider ?? "외부"}</span>
         </div>
       </div>
       <p className="company">{job.company}</p>
@@ -31,8 +31,27 @@ export default function JobCard({ job, isExpanded, onToggle }: JobCardProps) {
       </button>
       <div id={`job-description-${job.id}`} hidden={!isExpanded}>
         <div className="description">
-          {job.description}
-          <p>실제 지원은 아직 제공하지 않습니다.</p>
+          <p className="description-summary">{job.description}</p>
+          {job.salary && <p><strong>임금</strong> {job.salary}</p>}
+          {job.deadline && <p><strong>마감일</strong> {job.deadline}</p>}
+          {job.detailUrl ? (
+            <>
+              <a
+                className="job-source-link"
+                href={job.detailUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                채용정보 제공사이트로 이동
+              </a>
+              <p className="source-notice">
+                자료 출처: 고용24 · 본 자료는 고용노동부 고용24에서 제공된 정보이며,
+                무단복제 및 배포를 금지합니다.
+              </p>
+            </>
+          ) : (
+            <p>실제 지원은 아직 제공하지 않습니다.</p>
+          )}
         </div>
       </div>
     </article>
